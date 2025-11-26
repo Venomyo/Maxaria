@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maxaria - Catálogo con Precios por Cliente</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    :root { --violeta:#9b59b6; --fondo:#fdfaff; }
+    body { font-family:'Segoe UI',sans-serif; background:var(--fondo); margin:0; padding:0; display:flex; justify-content:center; align-items:center; min-height:100vh; }
+    .login { background:white; padding:50px 40px; border-radius:25px; box-shadow:0 20px 50px rgba(155,89,182,0.3); text-align:center; width:90%; max-width:420px; }
+    .login h1 { color:var(--violeta); font-size:2.5em; }
+    input { width:100%; padding:18px; margin:12px 0; font-size:18px; border:3px solid var(--violeta); border-radius:18px; outline:none; }
+    button { background:var(--violeta); color:white; border:none; padding:18px 40px; font-size:20px; border-radius:50px; cursor:pointer; font-weight:bold; }
+    button:active { transform:scale(0.95); }
+    .error { color:#e74c3c; margin-top:10px; }
+
+    .catalogo { display:none; padding:20px; }
+    .user-info { text-align:center; background:white; padding:15px; border-radius:20px; margin-bottom:20px; font-size:1.3em; color:var(--violeta); font-weight:bold; }
+
+    .tabs { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; max-width:1000px; margin:30px auto; }
+    .tab { background:white; border:3px solid var(--violeta); color:var(--violeta); padding:16px; text-align:center; font-weight:bold; cursor:pointer; border-radius:8px; box-shadow:0 6px 0 #8e44ad; transition:all 0.2s; }
+    .tab:active { transform:translateY(4px); box-shadow:0 2px 0 #8e44ad; }
+    .tab.active { background:var(--violeta); color:white; }
+
+    .productos { display:grid; grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); gap:28px; max-width:1500px; margin:0 auto; }
+    .card { background:white; border-radius:20px; overflow:hidden; box-shadow:0 12px 35px rgba(155,89,182,0.15); transition:all 0.4s; }
+    .card:hover { transform:translateY(-12px); }
+    .categoria { background:var(--violeta); color:white; padding:18px; font-size:1.5em; font-weight:bold; text-align:center; }
+    .info { padding:25px; }
+    .nombre { font-size:1.6em; font-weight:bold; color:#2c3e50; margin:0 0 12px; }
+    .precio { font-size:2.4em; color:var(--violeta); font-weight:bold; margin:15px 0; }
+    .stock { color:#27ae60; font-weight:bold; font-size:1.1em; }
+    .cantidad { display:flex; align-items:center; justify-content:center; gap:15px; margin:15px 0; }
+    .btn-cant { width:44px; height:44px; border-radius:50%; background:var(--violeta); color:white; font-size:24px; border:none; cursor:pointer; }
+    .num { font-size:1.8em; font-weight:bold; min-width:50px; text-align:center; }
+
+    .carrito { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:white; padding:18px 35px; border-radius:50px; box-shadow:0 12px 35px rgba(0,0,0,0.3); font-size:1.5em; font-weight:bold; color:var(--violeta); display:flex; align-items:center; gap:20px; z-index:1000; }
+    .carrito button { background:var(--violeta); color:white; border:none; padding:14px 28px; border-radius:50px; font-size:1em; cursor:pointer; font-weight:bold; }
+    .carrito button:active { transform:scale(0.95); }
+    #btn-ver-pedido { background:#8e44ad; }
+
+    .overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:2000; justify-content:center; align-items:center; }
+    .modal { background:white; width:90%; max-width:600px; max-height:85vh; overflow-y:auto; border-radius:20px; box-shadow:0 20px 50px rgba(0,0,0,0.4); }
+    .modal-header { background:var(--violeta); color:white; padding:20px; text-align:center; font-size:1.8em; font-weight:bold; border-radius:20px 20px 0 0; }
+    .modal-body { padding:25px; }
+    .item-pedido { display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid #eee; font-size:1.1em; }
+    .total-modal { font-size:1.6em; font-weight:bold; color:var(--violeta); text-align:right; margin-top:20px; }
+    .btn-cerrar { background:#e74c3c; color:white; padding:12px 30px; border:none; border-radius:50px; cursor:pointer; float:right; margin-top:20px; font-weight:bold; }
+  </style>
+</head>
+<body>
+
+  <div class="login" id="login">
+    <h1>Maxaria</h1>
+    <p>Ingresa tus datos de cliente</p>
+    <input type="text" id="usuario" placeholder="Usuario">
+    <input type="password" id="password" placeholder="Contraseña">
+    <button onclick="ingresar()">Ingresar</button>
+    <div class="error" id="error-msg"></div>
+  </div>
+
+  <div class="catalogo" id="catalogo">
+    <div class="user-info">Bienvenido: <span id="nombre-cliente"></span> | Precios: <span id="tipo-precio"></span></div>
+    <h1>Catálogo Maxaria</h1>
+    <p style="text-align:center;color:#666;font-size:1.3em;">Precios exclusivos · Solo productos con stock</p>
+
+    <div style="max-width:700px;margin:0 auto 30px;">
+      <input type="text" id="buscar" placeholder="Buscar producto o código..." style="width:100%;padding:18px;font-size:20px;border:4px solid #9b59b6;border-radius:18px;outline:none;">
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+    <div class="productos" id="productos">Cargando productos...</div>
+
+    <div class="carrito">
+      <span>Total: $<span id="total-pedido">0</span></span>
+      <button id="btn-ver-pedido" onclick="verPedido()">Ver Pedido</button>
+      <button onclick="enviarWhatsApp()">Enviar WhatsApp</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay" onclick="this.style.display='none'">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header">Tu Pedido</div>
+      <div class="modal-body" id="detalle-pedido"></div>
+      <button class="btn-cerrar" onclick="document.getElementById('overlay').style.display='none'">Cerrar</button>
+    </div>
+  </div>
+
+  <script>
+    const USUARIOS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSx1DvKbJeJlKE0v6ntZ5t9Vv9ZPQWoFt09fjaf2j2WfScOG7UdUWfPRLmHHCoUcnTKmwh8HK_bj2mZ/pub?gid=1962271293&single=true&output=csv";
+    const PRODUCTOS_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSx1DvKbJeJlKE0v6ntZ5t9Vv9ZPQWoFt09fjaf2j2WfScOG7UdUWfPRLmHHCoUcnTKmwh8HK_bj2mZ/pub?gid=0&single=true&output=csv";
+    const WHATSAPP_NUMERO = "5491123456789"; // TU NÚMERO
+
+    let usuarios = {};
+    let productos = [];
+    let pedido = {};
+    let precioCampo = "Precio Venta";
+
+    function parsePrecioArg(str) {
+      if (!str) return 0;
+      return parseFloat(str.toString().trim().replace(/\./g, '').replace(',', '.')) || 0;
+    }
+
+    // CARGAR USUARIOS (desde fila 2)
+    Papa.parse(USUARIOS_URL, {
+      download: true,
+      header: false,
+      skipEmptyLines: true,
+      complete: function(res) {
+        for (let i = 1; i < res.data.length; i++) {
+          const row = res.data[i];
+          if (row.length < 3) continue;
+          const user = row[0]?.toString().trim().toLowerCase();
+          const pass = row[1]?.toString().trim();
+          const tipo = row[2]?.toString().trim().toUpperCase();
+          if (user && pass) usuarios[user] = { pass, tipo };
+        }
+      }
+    });
+
+    function ingresar() {
+      const user = document.getElementById("usuario").value.trim().toLowerCase();
+      const pass = document.getElementById("password").value.trim();
+
+      if (usuarios[user] && usuarios[user].pass === pass) {
+        document.getElementById("login").style.display = "none";
+        document.getElementById("catalogo").style.display = "block";
+        document.getElementById("nombre-cliente").textContent = user.toUpperCase();
+        document.getElementById("tipo-precio").textContent = usuarios[user].tipo;
+
+        precioCampo = usuarios[user].tipo; // L0, L1, L3
+
+        cargarProductos();
+      } else {
+        document.getElementById("error-msg").textContent = "Usuario o contraseña incorrectos";
+      }
+    }
+
+    function cargarProductos() {
+      Papa.parse(PRODUCTOS_URL, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(res) {
+          // Ignora la primera fila vacía/combinada
+          const data = res.data.slice(1);
+          productos = data
+            .map(row => {
+              const precioRaw = row[precioCampo] || row["Precio Venta"] || "0";
+              return {
+                codigo: row["Código"]?.toString().trim() || "",
+                nombre: row["Nombre"]?.trim() || "",
+                categoria: row["Categoría"]?.trim() || "",
+                precio: parsePrecioArg(precioRaw),
+                stock: parseInt(row["Cantidad"] || "0") || 0
+              };
+            })
+            .filter(p => p.stock > 0 && p.precio > 0 && p.codigo && p.nombre)
+            .sort((a, b) => a.categoria.localeCompare(b.categoria) || a.nombre.localeCompare(b.nombre));
+
+          mostrarTabs();
+          mostrarProductos();
+        }
+      });
+    }
+
+    // Resto del código (tabs, carrito, verPedido, WhatsApp) igual que antes...
+    function mostrarTabs() {
+      const tabs = document.getElementById("tabs");
+      tabs.innerHTML = `<div class="tab active" data-cat="todas">TODAS<br>(${productos.length})</div>`;
+      [...new Set(productos.map(p => p.categoria))].sort().forEach(cat => {
+        const cant = productos.filter(p => p.categoria === cat).length;
+        tabs.innerHTML += `<div class="tab" data-cat="${cat}">${cat.toUpperCase()}<br>(${cant})</div>`;
+      });
+      document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+        document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+        t.classList.add("active");
+        mostrarProductos();
+      });
+    }
+
+    function cambiarCantidad(cod, delta) {
+      const p = productos.find(x => x.codigo === cod);
+      if (!p) return;
+      pedido[cod] = Math.max(0, Math.min(p.stock, (pedido[cod] || 0) + delta));
+      document.querySelector(`#cant-${cod}`).textContent = pedido[cod];
+      actualizarCarrito();
+    }
+
+    function actualizarCarrito() {
+      let total = 0;
+      for (let cod in pedido) {
+        const p = productos.find(x => x.codigo === cod);
+        if (p && pedido[cod] > 0) total += p.precio * pedido[cod];
+      }
+      document.getElementById("total-pedido").textContent = total.toLocaleString('es-AR');
+    }
+
+    function mostrarProductos() {
+      const buscar = document.getElementById("buscar").value.toLowerCase().trim();
+      const cat = document.querySelector(".tab.active").dataset.cat;
+      let lista = productos.filter(p => cat === "todas" || p.categoria === cat);
+      if (buscar) lista = lista.filter(p => p.codigo.includes(buscar) || p.nombre.toLowerCase().includes(buscar));
+
+      document.getElementById("productos").innerHTML = lista.map(p => `
+        <div class="card">
+          <div class="categoria">${p.categoria}</div>
+          <div class="info">
+            <div style="color:#888;font-size:1.1em;margin-bottom:8px;">Código: ${p.codigo}</div>
+            <h3 class="nombre">${p.nombre}</h3>
+            <div class="precio">$${p.precio.toLocaleString('es-AR')}</div>
+            <div class="stock">Stock: ${p.stock}</div>
+            <div class="cantidad">
+              <button class="btn-cant" onclick="cambiarCantidad('${p.codigo}',-1)">−</button>
+              <span class="num" id="cant-${p.codigo}">${pedido[p.codigo]||0}</span>
+              <button class="btn-cant" onclick="cambiarCantidad('${p.codigo}',1)">+</button>
+            </div>
+          </div>
+        </div>
+      `).join("") || "<div style='grid-column:1/-1;text-align:center;padding:80px;font-size:1.5em;color:#999;'>No hay productos</div>";
+    }
+
+    function verPedido() {
+      let html = "", total = 0, hay = false;
+      for (let cod in pedido) if (pedido[cod] > 0) {
+        const p = productos.find(x => x.codigo === cod);
+        const sub = p.precio * pedido[cod];
+        total += sub; hay = true;
+        html += `<div class="item-pedido">
+          <div><strong>${p.codigo}</strong> - ${p.nombre}<br><small>Cantidad: ${pedido[cod]}</small></div>
+          <div>$${sub.toLocaleString('es-AR')}</div>
+        </div>`;
+      }
+      if (!hay) return alert("¡Tu pedido está vacío!");
+      document.getElementById("detalle-pedido").innerHTML = html + 
+        `<div class="total-modal">TOTAL: $${total.toLocaleString('es-AR')}</div>`;
+      document.getElementById("overlay").style.display = "flex";
+    }
+
+    function enviarWhatsApp() {
+      let msg = "*PEDIDO MAXARIA*%0ACliente: " + document.getElementById("nombre-cliente").textContent + "%0A%0A";
+      let total = 0;
+      for (let cod in pedido) if (pedido[cod] > 0) {
+        const p = productos.find(x => x.codigo === cod);
+        const sub = p.precio * pedido[cod];
+        total += sub;
+        msg += `• ${p.codigo} - ${p.nombre} × ${pedido[cod]} = $${sub.toLocaleString('es-AR')}%0A`;
+      }
+      if (total === 0) return alert("Agregá productos");
+      msg += `%0A*Total: $${total.toLocaleString('es-AR')}*`;
+      window.open(`https://wa.me/${WHATSAPP_NUMERO}?text=${msg}`);
+    }
+
+    document.getElementById("buscar")?.addEventListener("input", mostrarProductos);
+    document.addEventListener("keypress", e => e.key === "Enter" && ingresar());
+  </script>
+</body>
+</html>
